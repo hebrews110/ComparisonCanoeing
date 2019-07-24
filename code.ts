@@ -280,11 +280,11 @@ class MathQuestion extends GameTools.InfoBox {
     private leftNum: Fraction;
     private rightNum: Fraction;
     private correct: boolean;
+    private forced_num: number;
     constructor() {
         super("", "", null);
     }
-    public static generateNumber(): Fraction {
-        let forcedNumber = getRandomInt(1, 9);
+    public generateNumber(): Fraction {
         switch(GameTools.currentLevel + 1) {
             default:
                 throw "Unexpected level";
@@ -303,11 +303,13 @@ class MathQuestion extends GameTools.InfoBox {
             case 7:
                 return new Fraction(getRandomInt(100, 999), 1000);
             case 8:
-                return new Fraction(forcedNumber, getRandomInt(1, 9));
+                return new Fraction(this.forced_num, getRandomInt(this.forced_num, 9));
             case 9:
-                return new Fraction(getRandomInt(1, 9), forcedNumber);
+                return new Fraction(getRandomInt(1, this.forced_num), this.forced_num);
             case 10:
-                return new Fraction(getRandomInt(1, 9).toString() + " " + new Fraction(getRandomInt(1, 9), getRandomInt(1, 9)).toFraction());
+                let forced_denom = getRandomInt(2, 9);
+                const str = getRandomInt(1, 9).toString() + " " + new Fraction(getRandomInt(1, forced_denom - 1), forced_denom).toFraction();
+                return new Fraction(str);
         }
     }
     public static convertFraction(fraction: Fraction): string {
@@ -351,8 +353,9 @@ class MathQuestion extends GameTools.InfoBox {
     dialogCreated(): void {
         $("#question-dialog .modal-title").text("Question " + (questionLoop.getNumTimesLooped() + 1) + " of " + 10);
         $("#question-dialog .modal-body").text("");
-        this.leftNum = MathQuestion.generateNumber();
-        this.rightNum = MathQuestion.generateNumber();
+        this.forced_num = getRandomInt(1, 9);
+        this.leftNum = this.generateNumber();
+        this.rightNum = this.generateNumber();
         let $div = $("<div></div>");
         $div.addClass("math-question");
         $("#question-dialog .modal-body").append($div);
