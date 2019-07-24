@@ -192,7 +192,7 @@ class AnimateCanoer extends GameTools.DisplayedItem {
 }
 
 class MoveCanoer extends GameTools.DisplayedItem {
-    constructor(public percent: number) { super(); }
+    constructor(public percent: number) { super(); if(this.percent < 7) this.percent = 7; }
     display(): void {
         $(".canoer").css("bottom", this.percent + "%");
         this.displayNext();
@@ -225,9 +225,61 @@ function playAudioIfSupported(audioFile: string, cb?: () => void): void {
         cb();
 }
 
+let contentsIndex = 0;
+let gameContents: GameTools.DisplayedItem[] = [];
+const numQuestions = 10;
+const amountPerQuestion = (70/numQuestions);
+
+class Loop extends GameTools.DisplayedItem {
+    private numLoops = 0;
+    constructor(public index: number, public relative = false, public times = 1) {
+        super();
+        if(index < 0)
+            this.relative = true;
+    }
+    /* Restore a previous loop */
+    addLoop(): void {
+        this.numLoops--;
+        if(this.numLoops < -1)
+            this.numLoops = -1;
+    }
+    getNumTimesLooped(): number {
+        return this.numLoops;
+    }
+    display(): void {
+        if(this.numLoops < this.times) {
+            
+            if(!this.relative)
+                contentsIndex = this.index;
+            else
+                contentsIndex += this.index;
+
+            contentsIndex -= 1;
+            this.numLoops++;
+        }
+        this.displayNext();
+    }
+    reset(): void {
+        this.numLoops = 0;
+    }
+}
+
+let questionLoop: Loop;
+
+class SystemReset extends GameTools.DisplayedItem {
+    display(): void {
+        gameContents.forEach(element => {
+            element.reset();
+        });
+        this.displayNext();
+    }
+}
+
+
 class MathQuestion extends GameTools.InfoBox {
     private leftNum: Fraction;
     private rightNum: Fraction;
+    private correct: boolean;
     constructor() {
         super("", "", null);
     }
@@ -277,7 +329,27 @@ class MathQuestion extends GameTools.InfoBox {
                 throw "Unexpected symbol";
         }
     }
+    displayNext(): void {
+        if(this.correct)
+            super.displayNext();
+        else {
+            contentsIndex++;
+            questionLoop.addLoop();
+            questionLoop.addLoop();
+            new AnimateCanoer(-amountPerQuestion, true).display();
+        }
+    }
+    getCorrectSymNum(): number {
+        const comparison =  this.leftNum.compare(this.rightNum);
+        if(comparison < 0)
+            return 0;
+        else if(comparison > 0)
+            return 2;
+        else
+            return 1;
+    }
     dialogCreated(): void {
+        $("#question-dialog .modal-title").text("Question " + (questionLoop.getNumTimesLooped() + 1) + " of " + 10);
         $("#question-dialog .modal-body").text("");
         this.leftNum = MathQuestion.generateNumber();
         this.rightNum = MathQuestion.generateNumber();
@@ -298,28 +370,25 @@ class MathQuestion extends GameTools.InfoBox {
                 symNum = 2;
             else
                 throw "Unknown symbol";
-            
-            if(this.isCorrect(symNum)) {
+            const symbols = [ "<", "=", ">" ];
+            $(".math-question button").prop("disabled", true);
+            this.correct = this.isCorrect(symNum);
+            if(this.correct) {
                 playAudioIfSupported("correct.mp3");
-                $(".math-question button").prop("disabled", true);
-                const symbols = [ "<", "=", ">" ];
-                $div.find(".question-mark").html("` " + symbols[symNum] + " `");
                 $div.find(".question-mark").css("color", "green");
-                MathJax.Hub.Queue(["Typeset",MathJax.Hub]);
-                MathJax.Hub.Queue(() => {
-                    setTimeout(() => {
-                        $("#question-dialog").modal('hide');
-                    }, 3000);
-                });
-                
             } else {
+                symNum = this.getCorrectSymNum();
                 $button.effect("shake");
-                $(".math-question button").prop("disabled", true);
-                playAudioIfSupported("wrong.wav", () => {
-                    $(".math-question button").prop("disabled", false);
-                })
+                $div.find(".question-mark").css("color", "red");
             }
+            $div.find(".question-mark").html("` " + symbols[symNum] + " `");
             
+            MathJax.Hub.Queue(["Typeset",MathJax.Hub]);
+            MathJax.Hub.Queue(() => {
+                setTimeout(() => {
+                    $("#question-dialog").modal('hide');
+                }, 3000);
+            });
         });
         MathJax.Hub.Queue(["Typeset",MathJax.Hub]);
         MathJax.Hub.Queue(() => {
@@ -328,42 +397,8 @@ class MathQuestion extends GameTools.InfoBox {
     }
 }
 
-let contentsIndex = 0;
-let gameContents: GameTools.DisplayedItem[] = [];
-class Loop extends GameTools.DisplayedItem {
-    private numLoops = 0;
-    constructor(public index: number, public relative = false, public times = 1) {
-        super();
-        if(index < 0)
-            this.relative = true;
-    }
-    display(): void {
-        if(this.numLoops < this.times) {
-            
-            if(!this.relative)
-                contentsIndex = this.index;
-            else
-                contentsIndex += this.index;
 
-            contentsIndex -= 1;
-            this.numLoops++;
-        }
-        this.displayNext();
-    }
-    reset(): void {
-        this.numLoops = 0;
-    }
-}
 
-class SystemReset extends GameTools.DisplayedItem {
-    display(): void {
-        gameContents.forEach(element => {
-            element.reset();
-        });
-        this.displayNext();
-    }
-}
-const numQuestions = 10;
 gameContents = [
     new SystemReset(),
     new GameTools.InfoBox("Welcome!", "Welcome to Comparison Canoeing! This game will teach you all about comparing numbers."),
@@ -382,8 +417,8 @@ gameContents = [
     ]),
     
     new MathQuestion(),
-    new AnimateCanoer((70/numQuestions), true),
-    new Loop(-2, true, numQuestions-1),
+    new AnimateCanoer(amountPerQuestion, true),
+    questionLoop = new Loop(-2, true, numQuestions-1),
     new GameTools.InfoBox("Congratulations!", "You've crossed the river! Ready to try a different level?", "Yes!"),
     new SystemReset(),
     new MoveCanoer(0),
@@ -409,11 +444,16 @@ function animateCanoer(percent: number, relative = false, cb?: () => void): void
     var current: number = parseInt($(".canoer").css("bottom"));
 
     if(relative) {
+        console.log("Current percent: " + ((current/target)*100));
         percent += (current/target)*100;
     }
 
+    if(percent < 7)
+        percent = 7;
+
     target *= (percent/100);
     console.log("target: " + target);
+    console.log("target percent: " + percent);
     var duration: number = (target-current)*10;
 
     
