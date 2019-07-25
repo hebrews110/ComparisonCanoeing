@@ -301,23 +301,31 @@ class MathQuestion extends GameTools.InfoBox {
             case 6:
                 return new Fraction(getRandomInt(10, 99), 100);
             case 7:
-                return new Fraction(getRandomInt(100, 999), 1000);
+                return new Fraction(getRandomInt(1, 99), 100).add(new Fraction(getRandomInt(1, 20), 1));
             case 8:
                 return new Fraction(this.forced_num, getRandomInt(this.forced_num, 9));
             case 9:
                 return new Fraction(getRandomInt(1, this.forced_num), this.forced_num);
             case 10:
-                let forced_denom = getRandomInt(2, 9);
-                const str = getRandomInt(1, 9).toString() + " " + new Fraction(getRandomInt(1, forced_denom - 1), forced_denom).toFraction();
-                return new Fraction(str);
+                let forced_denom = getRandomInt(2, 25);
+                return new Fraction(getRandomInt(1, forced_denom - 1), forced_denom);
         }
     }
     public static convertFraction(fraction: Fraction): string {
         const level = (GameTools.currentLevel + 1);
-        if(level >= 5 && level <= 7)
-            return fraction.toString(1+(level-5));
-        else
-            return fraction.toFraction(true);
+        if(level >= 5 && level <= 7) {
+            let decimalPlaces: number;
+            if(level != 7)
+                decimalPlaces = 1+(level-5);
+            else
+                decimalPlaces = 2;
+            let str = fraction.valueOf().toFixed(decimalPlaces);
+            if(level == 7) {
+                str = "$" + str;
+            }
+            return str;
+        } else
+            return fraction.toFraction(false);
     }
     isCorrect(symNum: number): boolean {
         switch(symNum) {
@@ -361,6 +369,8 @@ class MathQuestion extends GameTools.InfoBox {
         $("#question-dialog .modal-body").append($div);
         $div.html("Choose the symbol that best describes these numbers.<p></p><span>`" + MathQuestion.convertFraction(this.leftNum) + "` <span class='question-mark'><i class='far fa-question-circle'></i></span> " + "`" + MathQuestion.convertFraction(this.rightNum) + "`"
             + "</span><p></p><button class='less-than'>` < `</button><button class='equals'>` = `</button><button class='greater-than'>` > `</button>");
+        if((GameTools.currentLevel + 1) == 7)
+            $div.find(".question-mark").css("display", "block");
         $div.find("button").click((event) => {
             
             var symNum;
@@ -413,10 +423,10 @@ gameContents = [
         "Level 4<p>`2500 > 1877`",
         "Level 5<p>`0.2 < 0.5`",
         "Level 6<p>`0.19 < 0.21`",
-        "Level 7<p>`0.234 > 0.168`",
+        "Level 7<p>`$1.23 < $4.56`",
         "Level 8<p>`1/5 < 1/7`",
         "Level 9<p>`2/4 < 3/4`",
-        "Level 10<p>`3 1/3 > 1 7/9`"
+        "Level 10<p>`7/9 > 2/3`"
     ]),
     
     new MathQuestion(),
